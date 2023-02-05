@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -30,6 +31,7 @@ func AddBrag() gin.HandlerFunc {
 		}
 
 		newBrag := models.Brag{
+			ID:         primitive.NewObjectID(),
 			Title:      brag.Title,
 			Details:    brag.Details,
 			User_Id:    brag.User_Id,

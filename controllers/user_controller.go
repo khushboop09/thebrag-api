@@ -29,6 +29,7 @@ func CreateUser() gin.HandlerFunc {
 		}
 
 		newUser := models.User{
+			ID:         primitive.NewObjectID(),
 			Name:       user.Name,
 			Email:      user.Email,
 			Created_At: time.Now(),
