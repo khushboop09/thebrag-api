@@ -1,176 +1,125 @@
 package controllers
 
 import (
-	"context"
-	"log"
+	"errors"
 	"net/http"
 	"strconv"
 	"thebrag/configs"
 	"thebrag/models"
 	"thebrag/responses"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"gorm.io/gorm"
 )
 
-var bragsCollection *mongo.Collection = configs.GetCollection(configs.DB, "brags")
+var db *gorm.DB = configs.ConnectDB()
 
 func AddBrag() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		var brag models.Brag
-		defer cancel()
 
 		//validate the request body
-		if err := c.BindJSON(&brag); err != nil {
-			c.JSON(http.StatusBadRequest, responses.BragResponse{Status: http.StatusBadRequest, Message: "error", Data: err.Error()})
+		if err := c.ShouldBindJSON(&brag); err != nil {
+			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: err.Error()})
 			return
 		}
-
+		if brag.Title == "" {
+			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: "title cannot be empty"})
+			return
+		}
 		newBrag := models.Brag{
-			ID:      primitive.NewObjectID(),
 			Title:   brag.Title,
 			Details: brag.Details,
-			// User_Id:    brag.User_Id,
-			Created_At: time.Now(),
-			Updated_At: time.Now(),
 		}
 
-		result, err := bragsCollection.InsertOne(ctx, newBrag)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, responses.BragResponse{Status: http.StatusInternalServerError, Message: "error", Data: err.Error()})
+		result := db.Create(&newBrag)
+		if result.Error != nil {
+			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: "something went wrong"})
 			return
 		}
-
-		c.JSON(http.StatusCreated, responses.BragResponse{Status: http.StatusCreated, Message: "success", Data: result.InsertedID})
+		c.JSON(http.StatusCreated, responses.APIResponse{Status: http.StatusCreated, Message: "success", Data: newBrag.ID})
 	}
 }
 
 func GetAllBrags() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
 		var brags []models.Brag
-		skip, err := strconv.ParseInt(c.Query("skip"), 10, 64)
-		limit, err := strconv.ParseInt(c.Query("limit"), 10, 64)
-		defer cancel()
-
-		opts := options.Find()
-		opts.SetSort(bson.D{{Key: "created_at", Value: -1}})
-		opts.SetLimit(limit)
-		opts.SetSkip(skip)
-
-		sortCursor, err := bragsCollection.Find(ctx, bson.D{{}}, opts)
+		var skip int
+		var limit int
+		var err error
+		if c.Query("skip") != "" {
+			skip, err = strconv.Atoi(c.Query("skip"))
+		}
+		if c.Query("limit") != "" {
+			limit, err = strconv.Atoi(c.Query("limit"))
+		}
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, responses.BragResponse{Status: http.StatusInternalServerError, Message: "error", Data: err.Error()})
+			c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: err.Error()})
 			return
 		}
-		// var episodesSorted []bson.M
-		if err = sortCursor.All(ctx, &brags); err != nil {
-			log.Fatal(err)
-		}
-		c.JSON(http.StatusOK, responses.BragResponse{Status: http.StatusOK, Message: "success", Data: brags})
-
-	}
-}
-
-func GetAllUserBrags() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
-		userId := c.Param("userId")
-		var brags []models.Brag
-		defer cancel()
-
-		opts := options.Find()
-		opts.SetSort(bson.D{{Key: "created_at", Value: -1}})
-		sortCursor, err := bragsCollection.Find(ctx, bson.D{{Key: "user_id", Value: userId}}, opts)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, responses.BragResponse{Status: http.StatusInternalServerError, Message: "error", Data: err.Error()})
-			return
-		}
-		// var episodesSorted []bson.M
-		if err = sortCursor.All(ctx, &brags); err != nil {
-			log.Fatal(err)
-		}
-		c.JSON(http.StatusOK, responses.BragResponse{Status: http.StatusOK, Message: "success", Data: brags})
-
+		db.Limit(limit).Offset(skip).Find(&brags)
+		c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: brags})
 	}
 }
 
 func GetABrag() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
 		bragId := c.Param("bragId")
 		var brag models.Brag
-		defer cancel()
 
-		objId, _ := primitive.ObjectIDFromHex(bragId)
-		err := bragsCollection.FindOne(ctx, bson.M{"_id": objId}).Decode(&brag)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, responses.BragResponse{Status: http.StatusInternalServerError, Message: "error", Data: err.Error()})
+		result := db.First(&brag, bragId)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: "brag not found"})
+				return
+			}
+
+			c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: result.Error})
 			return
 		}
 
-		c.JSON(http.StatusOK, responses.BragResponse{Status: http.StatusOK, Message: "success", Data: brag})
-
+		c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: brag})
 	}
 }
 
 func DeleteBrag() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		bragId := c.Param("bragId")
-		defer cancel()
 
-		objId, _ := primitive.ObjectIDFromHex(bragId)
-
-		result, err := bragsCollection.DeleteOne(ctx, bson.M{"_id": objId})
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, responses.BragResponse{Status: http.StatusInternalServerError, Message: "error", Data: err.Error()})
+		result := db.Delete(&models.Brag{}, bragId)
+		if result.Error != nil {
+			c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: result.Error})
 			return
 		}
 
-		if result.DeletedCount < 1 {
-			c.JSON(http.StatusNotFound,
-				responses.BragResponse{Status: http.StatusNotFound, Message: "error", Data: "Brag with specified ID not found!"},
-			)
-			return
-		}
-
-		c.JSON(http.StatusOK,
-			responses.BragResponse{Status: http.StatusOK, Message: "success", Data: "Brag successfully deleted!"},
-		)
+		c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: "deleted"})
 	}
 }
 
 func UpdateBrag() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
 		bragId := c.Param("bragId")
 		var brag models.Brag
-		defer cancel()
-		objId, _ := primitive.ObjectIDFromHex(bragId)
 
 		//validate the request body
-		if err := c.BindJSON(&brag); err != nil {
-			c.JSON(http.StatusBadRequest, responses.BragResponse{Status: http.StatusBadRequest, Message: "error", Data: err.Error()})
+		if err := c.ShouldBindJSON(&brag); err != nil {
+			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: err.Error()})
+			return
+		}
+		if brag.Title == "" {
+			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: "title cannot be empty"})
+			return
+		}
+		result := db.Model(&brag).Updates(models.Brag{Title: brag.Title, Details: brag.Details})
+		if result.Error != nil {
+			c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: result.Error})
 			return
 		}
 
-		update := bson.M{"title": brag.Title, "details": brag.Details, "updated_at": time.Now()}
-		result, err := bragsCollection.UpdateOne(ctx, bson.M{"_id": objId}, bson.M{"$set": update})
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, responses.BragResponse{Status: http.StatusInternalServerError, Message: "error", Data: err.Error()})
+		if result.RowsAffected == 1 {
+			c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: bragId})
 			return
 		}
-
-		if result.MatchedCount == 1 {
-			c.JSON(http.StatusOK, responses.BragResponse{Status: http.StatusOK, Message: "success", Data: bragId})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, responses.BragResponse{Status: http.StatusInternalServerError, Message: "error", Data: "Brag not updated, please try again!"})
+		c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: "brag not updated, please try again!"})
 	}
 }

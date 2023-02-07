@@ -1,41 +1,40 @@
 package configs
 
 import (
-	"context"
 	"fmt"
-	"log"
-	"time"
+	"os"
 
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/joho/godotenv"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
-func ConnectDB() *mongo.Client {
-	client, err := mongo.NewClient(options.Client().ApplyURI(EnvMongoURI()))
-	if err != nil {
-		log.Fatal(err)
+// connect to mysql database
+func ConnectDB() *gorm.DB {
+	errorENV := godotenv.Load()
+	if errorENV != nil {
+		panic("Failed to load env file")
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err = client.Connect(ctx)
-	if err != nil {
-		log.Fatal(err)
+	dbUser := os.Getenv("DB_USER")
+	dbPass := os.Getenv("DB_PASS")
+	dbHost := os.Getenv("DB_HOST")
+	dbName := os.Getenv("DB_NAME")
+
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:3306)/%s?charset=utf8&parseTime=true&loc=Local", dbUser, dbPass, dbHost, dbName)
+	db, errorDB := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if errorDB != nil {
+		panic("Failed to connect mysql database")
 	}
 
-	//ping the database to check the connection
-	err = client.Ping(ctx, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Connected to MongoDB")
-	return client
+	return db
 }
 
-// client instance
-var DB *mongo.Client = ConnectDB()
-
-// getting database collections
-func GetCollection(client *mongo.Client, collectionName string) *mongo.Collection {
-	collection := client.Database("thebrag").Collection(collectionName)
-	return collection
+// stop connection to DB
+func DisconnectDB(db *gorm.DB) {
+	dbSQL, err := db.DB()
+	if err != nil {
+		panic("Failed to kill connection from database")
+	}
+	dbSQL.Close()
 }
