@@ -1,15 +1,15 @@
 package models
 
 import (
-	"time"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gorm.io/gorm"
 )
 
 type User struct {
-	ID         primitive.ObjectID `bson:"_id" json:"id,omitempty"`
-	Name       string             `json:"name"`
-	Email      string             `json:"email"`
-	Created_At time.Time          `json:"created_at"`
-	Updated_At time.Time          `json:"updated_at"`
+	gorm.Model
+	Name  string
+	Email string
+}
+
+func (b *User) TableName() string {
+	return "users"
 }
