@@ -28,8 +28,9 @@ func AddBrag() gin.HandlerFunc {
 			return
 		}
 		newBrag := models.Brag{
-			Title:   brag.Title,
-			Details: brag.Details,
+			Title:      brag.Title,
+			Details:    brag.Details,
+			CategoryID: brag.CategoryID,
 		}
 
 		result := db.Create(&newBrag)
@@ -44,8 +45,8 @@ func AddBrag() gin.HandlerFunc {
 func GetAllBrags() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var brags []models.Brag
-		var skip int
-		var limit int
+		skip := 0
+		limit := 10
 		var err error
 		if c.Query("skip") != "" {
 			skip, err = strconv.Atoi(c.Query("skip"))
@@ -57,8 +58,20 @@ func GetAllBrags() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: err.Error()})
 			return
 		}
-		db.Limit(limit).Offset(skip).Find(&brags)
-		c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: brags})
+		db.Limit(limit).Offset(skip).Preload("Category").Find(&brags)
+
+		var response []responses.BragResponse
+		for _, brag := range brags {
+			item := responses.BragResponse{
+				ID:           brag.ID,
+				CategoryName: brag.Category.Name,
+				CategoryID:   brag.CategoryID,
+				Title:        brag.Title,
+				Details:      brag.Details,
+			}
+			response = append(response, item)
+		}
+		c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: response})
 	}
 }
 
@@ -67,7 +80,7 @@ func GetABrag() gin.HandlerFunc {
 		bragId := c.Param("bragId")
 		var brag models.Brag
 
-		result := db.First(&brag, bragId)
+		result := db.Preload("Category").First(&brag, bragId)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: "brag not found"})
@@ -78,7 +91,14 @@ func GetABrag() gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: brag})
+		bragResponse := responses.BragResponse{
+			ID:           brag.ID,
+			CategoryName: brag.Category.Name,
+			CategoryID:   brag.CategoryID,
+			Title:        brag.Title,
+			Details:      brag.Details,
+		}
+		c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: bragResponse})
 	}
 }
 
@@ -91,14 +111,17 @@ func DeleteBrag() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: result.Error})
 			return
 		}
+		if result.RowsAffected == 1 {
+			c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: "deleted"})
+		} else {
+			c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: "brag not found"})
+		}
 
-		c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: "deleted"})
 	}
 }
 
 func UpdateBrag() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		bragId := c.Param("bragId")
 		var brag models.Brag
 
 		//validate the request body
@@ -106,18 +129,18 @@ func UpdateBrag() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: err.Error()})
 			return
 		}
-		if brag.Title == "" {
-			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: "title cannot be empty"})
+		if brag.Title == "" || brag.ID == 0 {
+			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: "ID or title cannot be empty"})
 			return
 		}
-		result := db.Model(&brag).Updates(models.Brag{Title: brag.Title, Details: brag.Details})
+		result := db.Model(&brag).Updates(models.Brag{Title: brag.Title, Details: brag.Details, CategoryID: brag.CategoryID})
 		if result.Error != nil {
 			c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: result.Error})
 			return
 		}
 
 		if result.RowsAffected == 1 {
-			c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: bragId})
+			c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: brag.ID})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: "brag not updated, please try again!"})

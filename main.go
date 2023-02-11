@@ -19,10 +19,11 @@ func main() {
 	configs.LoadEnv()
 	defer configs.DisconnectDB(db)
 	db.AutoMigrate(&models.Brag{})
+	db.AutoMigrate(&models.Category{})
 
 	//routes
-	// routes.UserRoute(router)
 	routes.BragRoute(router)
+	routes.CategoryRoute(router)
 
 	router.Run("localhost:8080")
 }
