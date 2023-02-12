@@ -44,7 +44,15 @@ func GetAllCategories() gin.HandlerFunc {
 			return
 		}
 		db.Find(&categories)
-		c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: categories})
+		var response []responses.CategoryResponse
+		for _, category := range categories {
+			item := responses.CategoryResponse{
+				ID:   category.ID,
+				Name: category.Name,
+			}
+			response = append(response, item)
+		}
+		c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: response})
 	}
 }
 
