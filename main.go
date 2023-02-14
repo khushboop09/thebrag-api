@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"thebrag/configs"
 	"thebrag/models"
 	"thebrag/routes"
@@ -27,5 +29,6 @@ func main() {
 	routes.CategoryRoute(router)
 	routes.UserRoute(router)
 
-	router.Run("localhost:8080")
+	listen_url := fmt.Sprintf("%s:8080", os.Getenv("SERVER_IP"))
+	router.Run(listen_url)
 }
