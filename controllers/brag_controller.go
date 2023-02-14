@@ -17,7 +17,11 @@ var db *gorm.DB = configs.ConnectDB()
 func AddBrag() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var brag models.Brag
-
+		userId, err := strconv.Atoi(c.Params.ByName("userId"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: "Invalid user"})
+			return
+		}
 		//validate the request body
 		if err := c.ShouldBindJSON(&brag); err != nil {
 			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: err.Error()})
@@ -31,6 +35,7 @@ func AddBrag() gin.HandlerFunc {
 			Title:      brag.Title,
 			Details:    brag.Details,
 			CategoryID: brag.CategoryID,
+			UserId:     userId,
 		}
 
 		result := db.Create(&newBrag)
@@ -44,6 +49,7 @@ func AddBrag() gin.HandlerFunc {
 
 func GetAllBrags() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userId := c.Params.ByName("userId")
 		var brags []models.Brag
 		skip := 0
 		limit := 10
@@ -58,7 +64,7 @@ func GetAllBrags() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: err.Error()})
 			return
 		}
-		db.Limit(limit).Offset(skip).Preload("Category").Find(&brags)
+		db.Limit(limit).Offset(skip).Preload("Category").Where("user_id = ?", userId).Find(&brags)
 
 		var response []responses.BragResponse
 		for _, brag := range brags {
@@ -77,10 +83,11 @@ func GetAllBrags() gin.HandlerFunc {
 
 func GetABrag() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userId := c.Params.ByName("userId")
 		bragId := c.Param("bragId")
 		var brag models.Brag
 
-		result := db.Preload("Category").First(&brag, bragId)
+		result := db.Preload("Category").Where("user_id = ?", userId).First(&brag, bragId)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: "brag not found"})
@@ -105,8 +112,9 @@ func GetABrag() gin.HandlerFunc {
 func DeleteBrag() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		bragId := c.Param("bragId")
+		userId := c.Params.ByName("userId")
 
-		result := db.Delete(&models.Brag{}, bragId)
+		result := db.Where("user_id = ?", userId).Delete(&models.Brag{}, bragId)
 		if result.Error != nil {
 			c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: result.Error})
 			return
@@ -123,6 +131,7 @@ func DeleteBrag() gin.HandlerFunc {
 func UpdateBrag() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var brag models.Brag
+		userId := c.Params.ByName("userId")
 
 		//validate the request body
 		if err := c.ShouldBindJSON(&brag); err != nil {
@@ -133,7 +142,7 @@ func UpdateBrag() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: "ID or title cannot be empty"})
 			return
 		}
-		result := db.Model(&brag).Updates(models.Brag{Title: brag.Title, Details: brag.Details, CategoryID: brag.CategoryID})
+		result := db.Model(&brag).Where("user_id = ?", userId).Updates(models.Brag{Title: brag.Title, Details: brag.Details, CategoryID: brag.CategoryID})
 		if result.Error != nil {
 			c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: result.Error})
 			return

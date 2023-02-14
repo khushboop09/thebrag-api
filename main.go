@@ -20,10 +20,12 @@ func main() {
 	defer configs.DisconnectDB(db)
 	db.AutoMigrate(&models.Brag{})
 	db.AutoMigrate(&models.Category{})
+	db.AutoMigrate(&models.User{})
 
 	//routes
 	routes.BragRoute(router)
 	routes.CategoryRoute(router)
+	routes.UserRoute(router)
 
 	router.Run("localhost:8080")
 }

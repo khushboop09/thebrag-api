@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"strconv"
 	"thebrag/models"
 	"thebrag/responses"
 
@@ -11,6 +12,11 @@ import (
 func AddCategory() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var category models.Category
+		userId, err := strconv.Atoi(c.Params.ByName("userId"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: "Invalid user"})
+			return
+		}
 
 		//validate the request body
 		if err := c.ShouldBindJSON(&category); err != nil {
@@ -22,7 +28,8 @@ func AddCategory() gin.HandlerFunc {
 			return
 		}
 		newCategory := models.Category{
-			Name: category.Name,
+			Name:   category.Name,
+			UserId: userId,
 		}
 
 		result := db.Create(&newCategory)
@@ -36,6 +43,7 @@ func AddCategory() gin.HandlerFunc {
 
 func GetAllCategories() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userId := c.Params.ByName("userId")
 		var categories []models.Category
 		var err error
 
@@ -43,7 +51,7 @@ func GetAllCategories() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: err.Error()})
 			return
 		}
-		db.Find(&categories)
+		db.Where("user_id = ?", userId).Find(&categories)
 		var response []responses.CategoryResponse
 		for _, category := range categories {
 			item := responses.CategoryResponse{
@@ -59,6 +67,7 @@ func GetAllCategories() gin.HandlerFunc {
 func UpdateCategory() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var category models.Category
+		userId := c.Params.ByName("userId")
 
 		//validate the request body
 		if err := c.ShouldBindJSON(&category); err != nil {
@@ -69,7 +78,7 @@ func UpdateCategory() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: "name cannot be empty"})
 			return
 		}
-		result := db.Model(&category).Updates(models.Category{Name: category.Name})
+		result := db.Model(&category).Where("user_id = ?", userId).Updates(models.Category{Name: category.Name})
 		if result.Error != nil {
 			c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: result.Error})
 			return

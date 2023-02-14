@@ -10,6 +10,8 @@ type Brag struct {
 	Details    string
 	CategoryID int
 	Category   Category `gorm:"foreignKey:CategoryID"`
+	UserId     int
+	User       User `gorm:"foreignKey:UserId"`
 }
 
 func (b *Brag) TableName() string {

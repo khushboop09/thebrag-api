@@ -8,9 +8,9 @@ import (
 
 func BragRoute(router *gin.Engine) {
 	//All routes related to brags comes here
-	router.POST("/brag", controllers.AddBrag())
-	router.GET("/brags", controllers.GetAllBrags())
-	router.GET("/brag/:bragId", controllers.GetABrag())
-	router.DELETE("/brag/:bragId", controllers.DeleteBrag())
-	router.PUT("/brag", controllers.UpdateBrag())
+	router.POST("/:userId/brag", controllers.AddBrag())
+	router.GET("/:userId/brags", controllers.GetAllBrags())
+	router.GET("/:userId/brag/:bragId", controllers.GetABrag())
+	router.DELETE("/:userId/brag/:bragId", controllers.DeleteBrag())
+	router.PUT("/:userId/brag", controllers.UpdateBrag())
 }

@@ -8,7 +8,7 @@ import (
 
 func CategoryRoute(router *gin.Engine) {
 	//All routes related to brags comes here
-	router.POST("/category", controllers.AddCategory())
-	router.GET("/categories", controllers.GetAllCategories())
-	router.PUT("/category/", controllers.UpdateCategory())
+	router.POST("/:userId/category", controllers.AddCategory())
+	router.GET("/:userId/categories", controllers.GetAllCategories())
+	router.PUT("/:userId/category", controllers.UpdateCategory())
 }
