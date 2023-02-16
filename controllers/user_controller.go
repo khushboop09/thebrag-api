@@ -19,21 +19,36 @@ func CreateUser() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: err.Error()})
 			return
 		}
-		if user.Name == "" {
-			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: "name cannot be empty"})
+		if user.Email == "" || user.Password == "" {
+			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: "invalid input"})
 			return
 		}
-		newUser := models.User{
-			Name:  user.Name,
-			Email: user.Email,
-		}
-
-		result := db.Create(&newUser)
+		var existingUser models.User
+		var userId uint
+		result := db.Where("email = ?", user.Email).First(&existingUser)
 		if result.Error != nil {
-			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: "something went wrong"})
-			return
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				newUser := models.User{
+					Name:     user.Name,
+					Email:    user.Email,
+					Password: user.Password,
+				}
+
+				result := db.Create(&newUser)
+				if result.Error != nil {
+					c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: "something went wrong"})
+					return
+				}
+				userId = newUser.ID
+			}
+		} else {
+			if existingUser.Password == user.Password {
+				userId = existingUser.ID
+			} else {
+				c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: "invalid password"})
+			}
 		}
-		c.JSON(http.StatusCreated, responses.APIResponse{Status: http.StatusCreated, Message: "success", Data: newUser.ID})
+		c.JSON(http.StatusCreated, responses.APIResponse{Status: http.StatusCreated, Message: "Logged In!", Data: userId})
 	}
 }
 
