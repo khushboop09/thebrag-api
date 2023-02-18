@@ -13,4 +13,5 @@ func BragRoute(router *gin.Engine) {
 	router.GET("/:userId/brag/:bragId", controllers.GetABrag())
 	router.DELETE("/:userId/brag/:bragId", controllers.DeleteBrag())
 	router.PUT("/:userId/brag", controllers.UpdateBrag())
+	router.POST("/:userId/brags/export", controllers.ExportBrag())
 }

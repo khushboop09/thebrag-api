@@ -2,10 +2,13 @@ package controllers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"thebrag/configs"
+	"thebrag/helpers"
 	"thebrag/models"
+	"thebrag/requests"
 	"thebrag/responses"
 
 	"github.com/gin-gonic/gin"
@@ -153,5 +156,41 @@ func UpdateBrag() gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: "brag not updated, please try again!"})
+	}
+}
+
+func ExportBrag() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userId := c.Params.ByName("userId")
+		var requestBody requests.ExportBragRequest
+
+		//validate the request body
+		if err := c.ShouldBindJSON(&requestBody); err != nil {
+			c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: err.Error()})
+			return
+		}
+
+		var brags []models.Brag
+		if requestBody.CategoryId == 0 {
+			// export for all categories
+			db.Preload("Category").Where("user_id = ? and created_at between ? and ?", userId, requestBody.From, requestBody.To).Find(&brags)
+		} else {
+			//export for requested category
+			db.Preload("Category").Where("user_id = ? and category_id = ? and created_at between ? and ?", userId, requestBody.CategoryId, requestBody.From, requestBody.To).Find(&brags)
+		}
+		if len(brags) == 0 {
+			c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: "brags not found in this date range or category, please try again with different inputs"})
+			return
+		}
+		csvRecords := helpers.FormatDataForCSV(brags)
+		var user models.User
+		db.First(&user, userId)
+		emailSent := helpers.WriteToCSVFileAndEmail(csvRecords, requestBody, user)
+
+		if emailSent {
+			c.JSON(http.StatusOK, responses.APIResponse{Status: http.StatusOK, Message: "success", Data: fmt.Sprintf("%d brags exported! Please check your email", len(brags))})
+		} else {
+			c.JSON(http.StatusInternalServerError, responses.APIResponse{Status: http.StatusInternalServerError, Message: "error", Data: "your brags couldn't be exported, please try again!"})
+		}
 	}
 }
