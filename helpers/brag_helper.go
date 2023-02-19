@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"thebrag/models"
 	"thebrag/requests"
+	"thebrag/s3"
 	"time"
 
 	"github.com/sendgrid/sendgrid-go"
@@ -25,7 +26,7 @@ func FormatDataForCSV(brags []models.Brag) [][]string {
 }
 
 func WriteToCSVFileAndEmail(records [][]string, request requests.ExportBragRequest, user models.User) bool {
-	filePath := fmt.Sprintf("brags_%s_%s.csv", request.From, request.To)
+	filePath := fmt.Sprintf("brags_%d_%s_%s.csv", user.ID, request.From, request.To)
 	file, err := os.Create(filePath)
 
 	if err != nil {
@@ -36,6 +37,8 @@ func WriteToCSVFileAndEmail(records [][]string, request requests.ExportBragReque
 	defer w.Flush()
 
 	w.WriteAll(records)
+	//TODO:upload to cloud object storage
+	UploadFileToObjectStorage(filePath)
 
 	b, err := os.ReadFile(filePath) // just pass the file name
 	if err != nil {
@@ -61,5 +64,19 @@ func SendBragsOnEmail(request requests.ExportBragRequest, user models.User, file
 		return false
 	} else {
 		return response.StatusCode == 202
+	}
+}
+
+func UploadFileToObjectStorage(filePath string) {
+	awsConfig := requests.AWSConfig{
+		AccessKeyID:     os.Getenv("LINODE_ACCESS_KEY"),
+		AccessKeySecret: os.Getenv("LINODE_SECRET_KEY"),
+		Region:          os.Getenv("LINODE_BUCKET_REGION"),
+		BucketName:      os.Getenv("BUCKET_NAME"),
+		BaseURL:         os.Getenv("LINODE_BASE_URL"),
+	}
+	error := s3.UploadFile(filePath, awsConfig)
+	if error != nil {
+		fmt.Println(error.Error())
 	}
 }
