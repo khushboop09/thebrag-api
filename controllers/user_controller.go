@@ -3,6 +3,7 @@ package controllers
 import (
 	"errors"
 	"net/http"
+	"thebrag/helpers"
 	"thebrag/models"
 	"thebrag/responses"
 
@@ -28,10 +29,12 @@ func CreateUser() gin.HandlerFunc {
 		result := db.Where("email = ?", user.Email).First(&existingUser)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				//create new user
+				password, _ := helpers.HashPassword(user.Password)
 				newUser := models.User{
 					Name:     user.Name,
 					Email:    user.Email,
-					Password: user.Password,
+					Password: password,
 				}
 
 				result := db.Create(&newUser)
@@ -42,10 +45,11 @@ func CreateUser() gin.HandlerFunc {
 				userId = newUser.ID
 			}
 		} else {
-			if existingUser.Password == user.Password {
+			if helpers.CheckPasswordHash(user.Password, existingUser.Password) {
 				userId = existingUser.ID
 			} else {
 				c.JSON(http.StatusBadRequest, responses.APIResponse{Status: http.StatusBadRequest, Message: "error", Data: "invalid password"})
+				return
 			}
 		}
 		c.JSON(http.StatusCreated, responses.APIResponse{Status: http.StatusCreated, Message: "Logged In!", Data: userId})
