@@ -37,8 +37,8 @@ func WriteToCSVFileAndEmail(records [][]string, request requests.ExportBragReque
 	defer w.Flush()
 
 	w.WriteAll(records)
-	//TODO:upload to cloud object storage
-	UploadFileToObjectStorage(filePath)
+
+	go UploadFileToObjectStorage(filePath)
 
 	b, err := os.ReadFile(filePath) // just pass the file name
 	if err != nil {
